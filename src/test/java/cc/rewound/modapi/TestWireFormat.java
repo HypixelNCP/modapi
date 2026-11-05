@@ -9,6 +9,7 @@ import cc.rewound.modapi.packet.impl.clientbound.ClientboundPartyInfoPacket;
 import cc.rewound.modapi.packet.impl.clientbound.ClientboundPingPacket;
 import cc.rewound.modapi.packet.impl.clientbound.ClientboundPlayerInfoPacket;
 import cc.rewound.modapi.packet.impl.clientbound.event.ClientboundGameFinishPacket;
+import cc.rewound.modapi.packet.impl.clientbound.event.ClientboundGameRejoinPacket;
 import cc.rewound.modapi.packet.impl.clientbound.event.ClientboundGameStartPacket;
 import cc.rewound.modapi.packet.impl.clientbound.event.ClientboundLocationPacket;
 import cc.rewound.modapi.packet.impl.serverbound.ServerboundPartyInfoPacket;
@@ -130,6 +131,7 @@ public class TestWireFormat {
         assertEquals("rewound:location", API.getRegistry().getIdentifier(ClientboundLocationPacket.class));
         assertEquals("rewound:game_start", API.getRegistry().getIdentifier(ClientboundGameStartPacket.class));
         assertEquals("rewound:game_finish", API.getRegistry().getIdentifier(ClientboundGameFinishPacket.class));
+        assertEquals("rewound:game_rejoin", API.getRegistry().getIdentifier(ClientboundGameRejoinPacket.class));
         assertTrue(API.getRegistry().getIdentifiers().stream().allMatch(identifier -> identifier.startsWith("rewound:")));
     }
 
@@ -245,6 +247,24 @@ public class TestWireFormat {
         assertEquals(GameType.BEDWARS, packet.getServerType().orElse(null));
         assertEquals("BEDWARS_EIGHT_ONE", packet.getMode());
         assertEquals("Elven", packet.getMap());
+    }
+
+    @Test
+    void gameRejoin() {
+        byte[] payload = success(1).string("mini400Z").string("BEDWARS").string("BEDWARS_EIGHT_ONE").string("Lighthouse").bytes();
+
+        ClientboundGameRejoinPacket packet = receive(ClientboundGameRejoinPacket.class, "rewound:game_rejoin", payload);
+
+        assertEquals("mini400Z", packet.getServerName());
+        assertEquals(GameType.BEDWARS, packet.getServerType().orElse(null));
+        assertEquals("BEDWARS_EIGHT_ONE", packet.getMode());
+        assertEquals("Lighthouse", packet.getMap());
+    }
+
+    @Test
+    void gameRejoinSubscribesAtVersionOne() {
+        ServerboundRegisterPacket packet = new ServerboundRegisterPacket(API.getRegistry(), java.util.Collections.singleton("rewound:game_rejoin"));
+        assertArrayEquals(new Bytes().raw(1, 1).string("rewound:game_rejoin").raw(1).bytes(), written(packet));
     }
 
     @Test

@@ -10,6 +10,7 @@ import cc.rewound.modapi.packet.RewoundPacket;
 import cc.rewound.modapi.packet.PacketRegistry;
 import cc.rewound.modapi.packet.impl.clientbound.*;
 import cc.rewound.modapi.packet.impl.clientbound.event.ClientboundGameFinishPacket;
+import cc.rewound.modapi.packet.impl.clientbound.event.ClientboundGameRejoinPacket;
 import cc.rewound.modapi.packet.impl.clientbound.event.ClientboundGameStartPacket;
 import cc.rewound.modapi.packet.impl.clientbound.event.ClientboundLocationPacket;
 import cc.rewound.modapi.packet.impl.serverbound.ServerboundPartyInfoPacket;
@@ -79,6 +80,10 @@ public class RewoundModAPI {
 
         registry.define("rewound:game_finish")
                 .clientBoundEvent(ClientboundGameFinishPacket.CURRENT_VERSION, ClientboundGameFinishPacket.class, ClientboundGameFinishPacket::new)
+                .register();
+
+        registry.define("rewound:game_rejoin")
+                .clientBoundEvent(ClientboundGameRejoinPacket.CURRENT_VERSION, ClientboundGameRejoinPacket.class, ClientboundGameRejoinPacket::new)
                 .register();
     }
 

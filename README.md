@@ -1,7 +1,7 @@
 # Rewound Mod API
 
 A fork of [Hypixel's Mod API](https://github.com/HypixelDev/ModAPI) for the Rewound server. It speaks the same payloads
-over plugin messages, but on `rewound:` channels, and adds match start and finish events. Hypixel's stock mod doesn't work
+over plugin messages, but on `rewound:` channels, and adds match start, finish and rejoin events. Hypixel's stock mod doesn't work
 on Rewound, because it only listens on Hypixel's channels.
 
 This is the library only. It needs a mod that implements `RewoundModAPIImplementation` for your loader, as
@@ -26,8 +26,13 @@ means an error id follows (`2` internal, `3` rate limited, `4` wrong version).
 | `rewound:location` | event | `1` | server name, then optional server type, lobby name, mode and map |
 | `rewound:game_start` | event | `1` | server name, server type, mode, map |
 | `rewound:game_finish` | event | `1` | server name, server type, mode, map, outcome, seconds played |
+| `rewound:game_rejoin` | event | `1` | server name, server type, mode, map |
 
 Outcome is `0` win, `1` loss, `2` draw or `3` cancelled. Send each request type at most about once a second.
+
+`rewound:game_rejoin` goes to a player who returns to a running match that held their place, instead of a second
+`rewound:game_start`. If they reconnected, it arrives once the client subscribes, unless they've left that match or it has
+finished by then.
 
 ## Building
 
