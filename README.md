@@ -1,82 +1,61 @@
-# Hypixel Mod API
+# Rewound Mod API
 
-The Hypixel Mod API is an implementation of custom packets for communicating with the Hypixel Server via plugin
-messages.
+A fork of [Hypixel's Mod API](https://github.com/HypixelDev/ModAPI) for the Rewound server. It speaks the same payloads
+over plugin messages, but on `rewound:` channels, and adds match start and finish events. Hypixel's stock mod doesn't work
+on Rewound, because it only listens on Hypixel's channels.
 
-## Mod Distributions
+This is the library only. It needs a mod that implements `RewoundModAPIImplementation` for your loader, as
+[ForgeModAPI](https://github.com/HypixelDev/ForgeModAPI) and [FabricModAPI](https://github.com/HypixelDev/FabricModAPI) do
+for Hypixel's.
 
-Official downloads of the Hypixel Mod API can be found on [Modrinth](https://modrinth.com/mod/hypixel-mod-api).
-To install the mod, simply download the JAR file and place it in your mods folder.
+## Protocol
 
-Currently, the Hypixel Mod API supports the following mod loaders and versions:
+Numbers are VarInts. Strings are a VarInt byte length, then UTF-8. Optional fields are a boolean, then the value if it's
+true. UUIDs are two big-endian longs.
 
-- [Fabric Latest](https://github.com/HypixelDev/FabricModAPI)
-- [Forge 1.8.9](https://github.com/HypixelDev/ForgeModAPI)
+Every clientbound message starts with a boolean: `true` means the packet follows, starting with its version, and `false`
+means an error id follows (`2` internal, `3` rate limited, `4` wrong version).
 
-If there is significant demand, support for additional versions and loaders may be considered.
+| Channel | Direction | Version | Payload |
+| --- | --- | --- | --- |
+| `rewound:hello` | clientbound, on every join to a server | none | environment |
+| `rewound:register` | serverbound | `1` | number of events (max 5), then each event's name and version |
+| `rewound:ping` | request | `1` | answers `"pong"` |
+| `rewound:party_info` | request | `2` | answers your party's members and roles |
+| `rewound:player_info` | request | `1` | answers your rank |
+| `rewound:location` | event | `1` | server name, then optional server type, lobby name, mode and map |
+| `rewound:game_start` | event | `1` | server name, server type, mode, map |
+| `rewound:game_finish` | event | `1` | server name, server type, mode, map, outcome, seconds played |
 
-## Developer Usage
+Outcome is `0` win, `1` loss, `2` draw or `3` cancelled. Send each request type at most about once a second.
 
-It is recommended to read over the [FAQ](https://github.com/HypixelDev/ModAPI/wiki/FAQ) on the GitHub Wiki before implementing the Mod API.
+## Building
 
-For using the Mod API you will need to add it as a dependency to your project. This can be done via the public
-Hypixel Maven repository.
+The library isn't published to a repository yet, so install it locally with Maven. Rank, server type and environment types
+come from `net.hypixel:hypixel-data`, which resolves from the Hypixel repository and is bundled into the jar.
 
-```xml
-
-<repository>
-    <id>Hypixel</id>
-    <url>https://repo.hypixel.net/repository/Hypixel/</url>
-</repository>
+```sh
+mvn install
 ```
-
-This repo can also be used with Gradle.
 
 ```gradle
 repositories {
-    maven { url 'https://repo.hypixel.net/repository/Hypixel/' }
+    mavenLocal()
 }
-```
 
-You can then include the dependency in your project.
-
-```xml
-
-<dependency>
-    <groupId>net.hypixel</groupId>
-    <artifactId>mod-api</artifactId>
-    <version>1.0.2</version>
-</dependency>
-```
-
-```gradle
 dependencies {
-    implementation 'net.hypixel:mod-api:1.0.2'
-}
-```
-
-Depending on your chosen mod loader, you will need to also include the `hypixel-mod-api` as a required dependency. For
-example in Fabric you would include the following in your `fabric.mod.json` file.
-
-```json
-{
-  "depends": {
-    "hypixel-mod-api": ">=1.0"
-  }
+    implementation 'cc.rewound:mod-api:dev-SNAPSHOT'
 }
 ```
 
 ## Example Usage
 
-Once you have the API added to your project you can start using it. Below are examples of sending server-bound packets,
-as well as receiving client-bound packets.
-
-### Sending a Hypixel Packet
+### Sending a packet
 
 ```java
 public class Example {
     public void sendPacket() {
-        HypixelModAPI.getInstance().sendPacket(new ServerboundPartyInfoPacket());
+        RewoundModAPI.getInstance().sendPacket(new ServerboundPartyInfoPacket());
     }
 }
 ```
@@ -84,31 +63,37 @@ public class Example {
 ### Registering a packet handler
 
 ```java
-
 public class Example {
     public void registerPacketHandler() {
-        HypixelModAPI.getInstance().createHandler(ClientboundLocationPacket.class, packet -> {
-            packet.getServerName();
+        RewoundModAPI.getInstance().createHandler(ClientboundPartyInfoPacket.class, packet -> {
+            packet.getMembers();
+        }).onError(reason -> {
+            // Rate limited, for example
         });
     }
 }
 ```
 
-### Subscribing to a packet event
+### Subscribing to an event
 
-If you wish to receive a specific event packet, you will need to subscribe to the event. Once subscribed you can
-register a packet handler as normal (see example above).
+To receive an event packet, subscribe to it, then register a handler as above.
 
 ```java
 public class Example {
-    public void subscribeToPacketEvent() {
-        HypixelModAPI.getInstance().subscribeToEventPacket(ClientboundLocationPacket.class);
+    public void subscribeToGameFinish() {
+        RewoundModAPI api = RewoundModAPI.getInstance();
+        api.createHandler(ClientboundGameFinishPacket.class, packet -> {
+            packet.getOutcome();
+            packet.getSecondsPlayed();
+        });
+        api.subscribeToEventPacket(ClientboundGameFinishPacket.class);
     }
 }
 ```
 
-Registering for an event packet is only required one time during the Minecraft client lifecycle. You can register for
-event packets at anytime, including in your mod initialization code before the player has connected.
+Subscribe once per client session, at any time, including in your mod's initialization before the player connects.
+Subscriptions don't carry between servers, so the library sends them again on every `ClientboundHelloPacket`.
 
-The implementation of the Mod API will automatically notify the server of any registered events when receiving
-the `ClientboundHelloPacket`.
+## License
+
+MIT, as upstream. See [LICENSE](LICENSE).
