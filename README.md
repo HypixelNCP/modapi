@@ -4,9 +4,8 @@ A fork of [Hypixel's Mod API](https://github.com/HypixelDev/ModAPI) for the Rewo
 over plugin messages, but on `rewound:` channels, and adds match start, finish and rejoin events. Hypixel's stock mod doesn't work
 on Rewound, because it only listens on Hypixel's channels.
 
-This is the library only. It needs a mod that implements `RewoundModAPIImplementation` for your loader, as
-[ForgeModAPI](https://github.com/HypixelDev/ForgeModAPI) and [FabricModAPI](https://github.com/HypixelDev/FabricModAPI) do
-for Hypixel's.
+This is the library only. Players need a mod that implements `RewoundModAPIImplementation`: use
+[FabricModAPI](https://github.com/HypixelNCP/FabricModAPI) or [ForgeModAPI](https://github.com/HypixelNCP/ForgeModAPI).
 
 ## Protocol
 
@@ -34,24 +33,35 @@ Outcome is `0` win, `1` loss, `2` draw or `3` cancelled. Send each request type 
 `rewound:game_start`. If they reconnected, it arrives once the client subscribes, unless they've left that match or it has
 finished by then.
 
-## Building
+## Developer Usage
 
-The library isn't published to a repository yet, so install it locally with Maven. Rank, server type and environment types
-come from `net.hypixel:hypixel-data`, which resolves from the Hypixel repository and is bundled into the jar.
-
-```sh
-mvn install
-```
+The library is available through [JitPack](https://jitpack.io/#HypixelNCP/modapi). Rank, server type and environment
+types come from `net.hypixel:hypixel-data`, which is bundled into the jar.
 
 ```gradle
 repositories {
-    mavenLocal()
+    maven { url 'https://jitpack.io' }
 }
 
 dependencies {
-    implementation 'cc.rewound:mod-api:dev-SNAPSHOT'
+    implementation 'com.github.HypixelNCP:modapi:1.0.3'
 }
 ```
+
+```xml
+<repository>
+    <id>jitpack.io</id>
+    <url>https://jitpack.io</url>
+</repository>
+
+<dependency>
+    <groupId>com.github.HypixelNCP</groupId>
+    <artifactId>modapi</artifactId>
+    <version>1.0.3</version>
+</dependency>
+```
+
+To build it yourself, run `mvn install` with JDK 8 or newer.
 
 ## Example Usage
 
