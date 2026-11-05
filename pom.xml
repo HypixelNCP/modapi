@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>net.hypixel</groupId>
+    <groupId>cc.rewound</groupId>
     <artifactId>mod-api</artifactId>
     <version>dev-SNAPSHOT</version>
 
@@ -20,13 +20,6 @@
             <url>https://repo.hypixel.net/repository/Hypixel/</url>
         </repository>
     </repositories>
-
-    <distributionManagement>
-        <repository>
-            <id>Hypixel</id>
-            <url>https://repo.hypixel.net/repository/Hypixel/</url>
-        </repository>
-    </distributionManagement>
 
     <dependencies>
         <dependency>
