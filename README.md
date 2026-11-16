@@ -1,7 +1,7 @@
 # Rewound Mod API
 
 A fork of [Hypixel's Mod API](https://github.com/HypixelDev/ModAPI) for the Rewound server. It speaks the same payloads
-over plugin messages, but on `rewound:` channels, and adds match start, finish and rejoin events. Hypixel's stock mod doesn't work
+over plugin messages, but on `rewound:` channels, and adds match start, finish and rejoin events and the Pit's event timers. Hypixel's stock mod doesn't work
 on Rewound, because it only listens on Hypixel's channels.
 
 This is the library only. Players need a mod that implements `RewoundModAPIImplementation`: use
@@ -10,7 +10,7 @@ This is the library only. Players need a mod that implements `RewoundModAPIImple
 ## Protocol
 
 Numbers are VarInts. Strings are a VarInt byte length, then UTF-8. Optional fields are a boolean, then the value if it's
-true. UUIDs are two big-endian longs.
+true. Longs are eight bytes, big-endian. UUIDs are two longs.
 
 Every clientbound message starts with a boolean: `true` means the packet follows, starting with its version, and `false`
 means an error id follows (`2` internal, `3` rate limited, `4` wrong version).
@@ -26,12 +26,20 @@ means an error id follows (`2` internal, `3` rate limited, `4` wrong version).
 | `rewound:game_start` | event | `1` | server name, server type, mode, map |
 | `rewound:game_finish` | event | `1` | server name, server type, mode, map, outcome, seconds played |
 | `rewound:game_rejoin` | event | `1` | server name, server type, mode, map |
+| `rewound:pit_events` | event | `1` | running (boolean); if running: id, name, major (boolean), start, end; then count, and each upcoming event's id, name, major (boolean), start |
 
 Outcome is `0` win, `1` loss, `2` draw or `3` cancelled. Send each request type at most about once a second.
 
 `rewound:game_rejoin` goes to a player who returns to a running match that held their place, instead of a second
 `rewound:game_start`. If they reconnected, it arrives once the client subscribes, unless they've left that match or it has
 finished by then.
+
+`rewound:pit_events` is sent only in the Pit: on subscribing, and again whenever the schedule of the player's Pit map
+changes. Times are epoch milliseconds (longs). The id is the event's catalog id, such as `king-of-the-hill` or `spire`,
+and the name is how it's announced, such as `KING OF THE HILL`. Upcoming holds at most the next minor and the next major
+event, soonest first, and the named event is the one that will start. Start times can move: an event waits a minute at a
+time for enough players, and while one runs the next ones are timed from its scheduled end. `ClientboundPitEventsPacket`
+reads it; `getNext(true)` is the next major.
 
 ## Developer Usage
 

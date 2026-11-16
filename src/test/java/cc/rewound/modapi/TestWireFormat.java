@@ -12,6 +12,7 @@ import cc.rewound.modapi.packet.impl.clientbound.event.ClientboundGameFinishPack
 import cc.rewound.modapi.packet.impl.clientbound.event.ClientboundGameRejoinPacket;
 import cc.rewound.modapi.packet.impl.clientbound.event.ClientboundGameStartPacket;
 import cc.rewound.modapi.packet.impl.clientbound.event.ClientboundLocationPacket;
+import cc.rewound.modapi.packet.impl.clientbound.event.ClientboundPitEventsPacket;
 import cc.rewound.modapi.packet.impl.serverbound.ServerboundPartyInfoPacket;
 import cc.rewound.modapi.packet.impl.serverbound.ServerboundPingPacket;
 import cc.rewound.modapi.packet.impl.serverbound.ServerboundPlayerInfoPacket;
@@ -93,9 +94,24 @@ public class TestWireFormat {
             return this;
         }
 
+        Bytes longValue(long value) {
+            ByteBuf buf = Unpooled.buffer();
+            buf.writeLong(value);
+            out.write(buf.array(), 0, 8);
+            return this;
+        }
+
         byte[] bytes() {
             return out.toByteArray();
         }
+    }
+
+    private static byte[] hex(String hex) {
+        byte[] bytes = new byte[hex.length() / 2];
+        for (int i = 0; i < bytes.length; i++) {
+            bytes[i] = (byte) Integer.parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+        }
+        return bytes;
     }
 
     private static Bytes success(int version) {
@@ -132,6 +148,7 @@ public class TestWireFormat {
         assertEquals("rewound:game_start", API.getRegistry().getIdentifier(ClientboundGameStartPacket.class));
         assertEquals("rewound:game_finish", API.getRegistry().getIdentifier(ClientboundGameFinishPacket.class));
         assertEquals("rewound:game_rejoin", API.getRegistry().getIdentifier(ClientboundGameRejoinPacket.class));
+        assertEquals("rewound:pit_events", API.getRegistry().getIdentifier(ClientboundPitEventsPacket.class));
         assertTrue(API.getRegistry().getIdentifiers().stream().allMatch(identifier -> identifier.startsWith("rewound:")));
     }
 
@@ -313,6 +330,77 @@ public class TestWireFormat {
                 written(new ClientboundGameStartPacket("s", "DUELS", "m", "p")));
         assertArrayEquals(java.util.Arrays.copyOfRange(finish, 1, finish.length),
                 written(new ClientboundGameFinishPacket("s", "DUELS", "m", "p", ClientboundGameFinishPacket.Outcome.WIN, 90)));
+    }
+
+    private static final long KOTH_START = 1_600_000_000_000L;
+
+    @Test
+    void pitEventsWhileAnEventRuns() {
+        byte[] payload = success(1)
+                .raw(1).string("king-of-the-hill").string("KING OF THE HILL").raw(0).longValue(KOTH_START).longValue(KOTH_START + 300_000L)
+                .raw(2)
+                .string("giant-cake").string("GIANT CAKE").raw(0).longValue(KOTH_START + 900_000L)
+                .string("spire").string("SPIRE").raw(1).longValue(KOTH_START + 2_700_000L)
+                .bytes();
+
+        ClientboundPitEventsPacket packet = receive(ClientboundPitEventsPacket.class, "rewound:pit_events", payload);
+
+        ClientboundPitEventsPacket.PitEvent current = packet.getCurrent().orElse(null);
+        assertNotNull(current);
+        assertEquals("king-of-the-hill", current.getId());
+        assertEquals("KING OF THE HILL", current.getName());
+        assertFalse(current.isMajor());
+        assertEquals(KOTH_START, current.getStartTime());
+        assertEquals(KOTH_START + 300_000L, current.getEndTime());
+        assertEquals(2, packet.getUpcoming().size());
+        assertEquals(new ClientboundPitEventsPacket.PitEvent("giant-cake", "GIANT CAKE", false, KOTH_START + 900_000L, 0L), packet.getUpcoming().get(0));
+        assertEquals("spire", packet.getNext(true).map(ClientboundPitEventsPacket.PitEvent::getId).orElse(null));
+        assertEquals(KOTH_START + 2_700_000L, packet.getNext(true).get().getStartTime());
+        assertEquals("giant-cake", packet.getNext(false).get().getId());
+    }
+
+    @Test
+    void pitEventsWithNothingRunningOrComing() {
+        ClientboundPitEventsPacket packet = receive(ClientboundPitEventsPacket.class, "rewound:pit_events", success(1).raw(0, 0).bytes());
+        assertFalse(packet.getCurrent().isPresent());
+        assertTrue(packet.getUpcoming().isEmpty());
+        assertFalse(packet.getNext(true).isPresent());
+    }
+
+    /** The same bytes as the server's ModApiSessionTest pins down (hypixelncp-platform, docs/mod-api.md). */
+    @Test
+    void pitEventsMatchTheServersBytes() {
+        ClientboundPitEventsPacket idle = receive(ClientboundPitEventsPacket.class, "rewound:pit_events",
+                hex("0101000105737069726505535049524501000001748797b2e0"));
+        assertEquals(new ClientboundPitEventsPacket.PitEvent("spire", "SPIRE", true, KOTH_START + 2_700_000L, 0L), idle.getUpcoming().get(0));
+
+        ClientboundPitEventsPacket running = receive(ClientboundPitEventsPacket.class, "rewound:pit_events",
+                hex("010101106b696e672d6f662d7468652d68696c6c104b494e47204f46205448452048494c4c0000000174876e800000000174877313e000"));
+        assertEquals(new ClientboundPitEventsPacket.PitEvent("king-of-the-hill", "KING OF THE HILL", false, KOTH_START, KOTH_START + 300_000L),
+                running.getCurrent().orElse(null));
+        assertTrue(running.getUpcoming().isEmpty());
+    }
+
+    @Test
+    void pitEventsWriteWhatTheyRead() {
+        byte[] payload = success(1)
+                .raw(1).string("auction").string("AUCTION").raw(0).longValue(KOTH_START).longValue(KOTH_START + 1L)
+                .raw(1).string("beast").string("BEAST").raw(1).longValue(KOTH_START + 2L)
+                .bytes();
+
+        ClientboundPitEventsPacket read = receive(ClientboundPitEventsPacket.class, "rewound:pit_events", payload);
+        ClientboundPitEventsPacket built = new ClientboundPitEventsPacket(
+                new ClientboundPitEventsPacket.PitEvent("auction", "AUCTION", false, KOTH_START, KOTH_START + 1L),
+                java.util.Collections.singletonList(new ClientboundPitEventsPacket.PitEvent("beast", "BEAST", true, KOTH_START + 2L, 0L)));
+
+        assertArrayEquals(java.util.Arrays.copyOfRange(payload, 1, payload.length), written(read));
+        assertArrayEquals(java.util.Arrays.copyOfRange(payload, 1, payload.length), written(built));
+    }
+
+    @Test
+    void pitEventsSubscribeAtVersionOne() {
+        ServerboundRegisterPacket packet = new ServerboundRegisterPacket(API.getRegistry(), java.util.Collections.singleton("rewound:pit_events"));
+        assertArrayEquals(new Bytes().raw(1, 1).string("rewound:pit_events").raw(1).bytes(), written(packet));
     }
 
     @Test
