@@ -52,7 +52,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.HypixelNCP:modapi:1.0.3'
+    implementation 'com.github.HypixelNCP:modapi:1.0.4'
 }
 ```
 
@@ -65,7 +65,7 @@ dependencies {
 <dependency>
     <groupId>com.github.HypixelNCP</groupId>
     <artifactId>modapi</artifactId>
-    <version>1.0.3</version>
+    <version>1.0.4</version>
 </dependency>
 ```
 
