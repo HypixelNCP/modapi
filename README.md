@@ -26,7 +26,7 @@ means an error id follows (`2` internal, `3` rate limited, `4` wrong version).
 | `rewound:game_start` | event | `1` | server name, server type, mode, map |
 | `rewound:game_finish` | event | `1` | server name, server type, mode, map, outcome, seconds played |
 | `rewound:game_rejoin` | event | `1` | server name, server type, mode, map |
-| `rewound:pit_events` | event | `1` | running (boolean); if running: id, name, major (boolean), start, end; then count, and each upcoming event's id, name, major (boolean), start |
+| `rewound:pit_events` | event | `2` | map id, map name, population, min players, running (boolean); if running: id, name, major (boolean), start, end, description, rules, optional destination, status lines; then count, and each upcoming event's id, name, major (boolean), start, duration seconds, description, rules |
 
 Outcome is `0` win, `1` loss, `2` draw or `3` cancelled. Send each request type at most about once a second.
 
@@ -34,12 +34,13 @@ Outcome is `0` win, `1` loss, `2` draw or `3` cancelled. Send each request type 
 `rewound:game_start`. If they reconnected, it arrives once the client subscribes, unless they've left that match or it has
 finished by then.
 
-`rewound:pit_events` is sent only in the Pit: on subscribing, and again whenever the schedule of the player's Pit map
-changes. Times are epoch milliseconds (longs). The id is the event's catalog id, such as `king-of-the-hill` or `spire`,
-and the name is how it's announced, such as `KING OF THE HILL`. Upcoming holds at most the next minor and the next major
-event, soonest first, and the named event is the one that will start. Start times can move: an event waits a minute at a
-time for enough players, and while one runs the next ones are timed from its scheduled end. `ClientboundPitEventsPacket`
-reads it; `getNext(true)` is the next major.
+`rewound:pit_events` is sent only in the Pit: on subscribing, and again whenever the schedule, map population, or the
+viewer's live event status changes. Times are epoch milliseconds (longs). The id is the event's catalog id, such as
+`king-of-the-hill` or `spire`, and the name is how it's announced, such as `KING OF THE HILL`. Upcoming holds up to 6
+projected upcoming events, soonest first, and the named events are the ones that will start in that order. Start times
+can move: an event waits a minute at a time for enough players, and while one runs the next ones are timed from its
+scheduled end. `ClientboundPitEventsPacket` reads version `2` (the server still serves version `1` for older clients);
+`getNext(true)` is the next major.
 
 ## Developer Usage
 
@@ -52,7 +53,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.HypixelNCP:modapi:1.0.4'
+    implementation 'com.github.HypixelNCP:modapi:1.0.5'
 }
 ```
 
@@ -65,7 +66,7 @@ dependencies {
 <dependency>
     <groupId>com.github.HypixelNCP</groupId>
     <artifactId>modapi</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.5</version>
 </dependency>
 ```
 

@@ -336,71 +336,111 @@ public class TestWireFormat {
 
     @Test
     void pitEventsWhileAnEventRuns() {
-        byte[] payload = success(1)
-                .raw(1).string("king-of-the-hill").string("KING OF THE HILL").raw(0).longValue(KOTH_START).longValue(KOTH_START + 300_000L)
+        byte[] payload = success(2)
+                .string("castle").string("Castle").raw(42, 20)
+                .raw(1).string("rage-pit").string("RAGE PIT").raw(1).longValue(KOTH_START).longValue(KOTH_START + 240_000L)
+                .string("Glass walls seal mid.").string("Double health.")
+                .raw(0)
+                .raw(2).string("Damage dealt: 35 (#4)").string("All kills: 285/600")
                 .raw(2)
-                .string("giant-cake").string("GIANT CAKE").raw(0).longValue(KOTH_START + 900_000L)
-                .string("spire").string("SPIRE").raw(1).longValue(KOTH_START + 2_700_000L)
+                .string("giant-cake").string("GIANT CAKE").raw(0).longValue(KOTH_START + 900_000L).raw(120)
+                .string("Eat cake slices.").string("Click to eat.")
+                .string("spire").string("SPIRE").raw(1).longValue(KOTH_START + 2_700_000L).raw(0xAC, 0x02)
+                .string("Climb the Spire.").string("Reach Floor 6.")
                 .bytes();
 
         ClientboundPitEventsPacket packet = receive(ClientboundPitEventsPacket.class, "rewound:pit_events", payload);
 
+        assertEquals("castle", packet.getMapId());
+        assertEquals("Castle", packet.getMapName());
+        assertEquals(42, packet.getPopulation());
+        assertEquals(20, packet.getMinPlayers());
         ClientboundPitEventsPacket.PitEvent current = packet.getCurrent().orElse(null);
         assertNotNull(current);
-        assertEquals("king-of-the-hill", current.getId());
-        assertEquals("KING OF THE HILL", current.getName());
-        assertFalse(current.isMajor());
+        assertEquals("rage-pit", current.getId());
+        assertEquals("RAGE PIT", current.getName());
+        assertTrue(current.isMajor());
         assertEquals(KOTH_START, current.getStartTime());
-        assertEquals(KOTH_START + 300_000L, current.getEndTime());
+        assertEquals(KOTH_START + 240_000L, current.getEndTime());
+        assertEquals(240, current.getDurationSeconds());
+        assertEquals("Glass walls seal mid.", current.getDescription());
+        assertEquals("Double health.", current.getRules());
+        assertFalse(current.getDestination().isPresent());
+        assertEquals(java.util.Arrays.asList("Damage dealt: 35 (#4)", "All kills: 285/600"), current.getStatusLines());
         assertEquals(2, packet.getUpcoming().size());
-        assertEquals(new ClientboundPitEventsPacket.PitEvent("giant-cake", "GIANT CAKE", false, KOTH_START + 900_000L, 0L), packet.getUpcoming().get(0));
+        assertEquals(new ClientboundPitEventsPacket.PitEvent("giant-cake", "GIANT CAKE", false, KOTH_START + 900_000L, 0L,
+                120, "Eat cake slices.", "Click to eat.", null, java.util.Collections.emptyList()), packet.getUpcoming().get(0));
         assertEquals("spire", packet.getNext(true).map(ClientboundPitEventsPacket.PitEvent::getId).orElse(null));
         assertEquals(KOTH_START + 2_700_000L, packet.getNext(true).get().getStartTime());
+        assertEquals(300, packet.getNext(true).get().getDurationSeconds());
         assertEquals("giant-cake", packet.getNext(false).get().getId());
     }
 
     @Test
     void pitEventsWithNothingRunningOrComing() {
-        ClientboundPitEventsPacket packet = receive(ClientboundPitEventsPacket.class, "rewound:pit_events", success(1).raw(0, 0).bytes());
+        ClientboundPitEventsPacket packet = receive(ClientboundPitEventsPacket.class, "rewound:pit_events",
+                success(2).string("corals").string("Corals").raw(5, 20).raw(0, 0).bytes());
+        assertEquals("corals", packet.getMapId());
+        assertEquals("Corals", packet.getMapName());
+        assertEquals(5, packet.getPopulation());
+        assertEquals(20, packet.getMinPlayers());
         assertFalse(packet.getCurrent().isPresent());
         assertTrue(packet.getUpcoming().isEmpty());
         assertFalse(packet.getNext(true).isPresent());
     }
 
-    /** The same bytes as the server's ModApiSessionTest pins down (hypixelncp-platform, docs/mod-api.md). */
+    /** The same v2 bytes as the server's ModApiSessionTest pins down (hypixelncp-platform, docs/mod-api.md). */
     @Test
     void pitEventsMatchTheServersBytes() {
-        ClientboundPitEventsPacket idle = receive(ClientboundPitEventsPacket.class, "rewound:pit_events",
-                hex("0101000105737069726505535049524501000001748797b2e0"));
-        assertEquals(new ClientboundPitEventsPacket.PitEvent("spire", "SPIRE", true, KOTH_START + 2_700_000L, 0L), idle.getUpcoming().get(0));
-
-        ClientboundPitEventsPacket running = receive(ClientboundPitEventsPacket.class, "rewound:pit_events",
-                hex("010101106b696e672d6f662d7468652d68696c6c104b494e47204f46205448452048494c4c0000000174876e800000000174877313e000"));
-        assertEquals(new ClientboundPitEventsPacket.PitEvent("king-of-the-hill", "KING OF THE HILL", false, KOTH_START, KOTH_START + 300_000L),
-                running.getCurrent().orElse(null));
-        assertTrue(running.getUpcoming().isEmpty());
+        ClientboundPitEventsPacket packet = receive(ClientboundPitEventsPacket.class, "rewound:pit_events",
+                hex("010206636173746c6506436173746c652a140108726167652d7069740852414745205049540100000174876e8000000001748772298015476c6173732077616c6c73207365616c206d69642e0e446f75626c65206865616c74682e00021544616d616765206465616c743a203335202823342912416c6c206b696c6c733a203238352f3630300105737069726505535049524501000001748797b2e0ac0210436c696d62207468652053706972652e0e526561636820466c6f6f7220362e"));
+        assertEquals("castle", packet.getMapId());
+        assertEquals("Castle", packet.getMapName());
+        assertEquals(42, packet.getPopulation());
+        assertEquals(20, packet.getMinPlayers());
+        ClientboundPitEventsPacket.PitEvent current = packet.getCurrent().orElse(null);
+        assertNotNull(current);
+        assertEquals("rage-pit", current.getId());
+        assertEquals("RAGE PIT", current.getName());
+        assertTrue(current.isMajor());
+        assertEquals(KOTH_START, current.getStartTime());
+        assertEquals(KOTH_START + 240_000L, current.getEndTime());
+        assertEquals("Glass walls seal mid.", current.getDescription());
+        assertEquals("Double health.", current.getRules());
+        assertEquals(java.util.Arrays.asList("Damage dealt: 35 (#4)", "All kills: 285/600"), current.getStatusLines());
+        assertEquals(1, packet.getUpcoming().size());
+        assertEquals(new ClientboundPitEventsPacket.PitEvent("spire", "SPIRE", true, KOTH_START + 2_700_000L, 0L,
+                300, "Climb the Spire.", "Reach Floor 6.", null, java.util.Collections.emptyList()), packet.getUpcoming().get(0));
     }
 
     @Test
     void pitEventsWriteWhatTheyRead() {
-        byte[] payload = success(1)
-                .raw(1).string("auction").string("AUCTION").raw(0).longValue(KOTH_START).longValue(KOTH_START + 1L)
-                .raw(1).string("beast").string("BEAST").raw(1).longValue(KOTH_START + 2L)
+        byte[] payload = success(2)
+                .string("genesis").string("Genesis").raw(30, 20)
+                .raw(1).string("pizza").string("PIZZA").raw(1).longValue(KOTH_START).longValue(KOTH_START + 300_000L)
+                .string("Deliver pizzas.").string("Cash in at stand.")
+                .raw(1).string("Go to GARDEN!")
+                .raw(1).string("Wallet: $15")
+                .raw(1).string("beast").string("BEAST").raw(1).longValue(KOTH_START + 2_700_000L).raw(0xAC, 0x02)
+                .string("Slay the Beast.").string("90s survival bonus.")
                 .bytes();
 
         ClientboundPitEventsPacket read = receive(ClientboundPitEventsPacket.class, "rewound:pit_events", payload);
-        ClientboundPitEventsPacket built = new ClientboundPitEventsPacket(
-                new ClientboundPitEventsPacket.PitEvent("auction", "AUCTION", false, KOTH_START, KOTH_START + 1L),
-                java.util.Collections.singletonList(new ClientboundPitEventsPacket.PitEvent("beast", "BEAST", true, KOTH_START + 2L, 0L)));
+        ClientboundPitEventsPacket built = new ClientboundPitEventsPacket("genesis", "Genesis", 30, 20,
+                new ClientboundPitEventsPacket.PitEvent("pizza", "PIZZA", true, KOTH_START, KOTH_START + 300_000L,
+                        300, "Deliver pizzas.", "Cash in at stand.", "Go to GARDEN!", java.util.Collections.singletonList("Wallet: $15")),
+                java.util.Collections.singletonList(new ClientboundPitEventsPacket.PitEvent("beast", "BEAST", true,
+                        KOTH_START + 2_700_000L, 0L, 300, "Slay the Beast.", "90s survival bonus.", null, java.util.Collections.emptyList())));
 
+        assertEquals("Go to GARDEN!", read.getCurrent().get().getDestination().orElse(null));
         assertArrayEquals(java.util.Arrays.copyOfRange(payload, 1, payload.length), written(read));
         assertArrayEquals(java.util.Arrays.copyOfRange(payload, 1, payload.length), written(built));
     }
 
     @Test
-    void pitEventsSubscribeAtVersionOne() {
+    void pitEventsSubscribeAtVersionTwo() {
         ServerboundRegisterPacket packet = new ServerboundRegisterPacket(API.getRegistry(), java.util.Collections.singleton("rewound:pit_events"));
-        assertArrayEquals(new Bytes().raw(1, 1).string("rewound:pit_events").raw(1).bytes(), written(packet));
+        assertArrayEquals(new Bytes().raw(1, 1).string("rewound:pit_events").raw(2).bytes(), written(packet));
     }
 
     @Test
